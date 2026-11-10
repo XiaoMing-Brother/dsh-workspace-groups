@@ -1,0 +1,54 @@
+{
+  "name": "dsh-workspace-groups",
+  "version": "0.1.0",
+  "description": "把多个工作区收进可折叠的分区，侧边栏按分区 → 工作区 → 会话三层展示 · Group DSH workspaces into collapsible sections",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiaoMing-Brother/dsh-workspace-groups.git"
+  },
+  "homepage": "https://github.com/XiaoMing-Brother/dsh-workspace-groups#readme",
+  "bugs": {
+    "url": "https://github.com/XiaoMing-Brother/dsh-workspace-groups/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "workspace",
+    "workspace-groups"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0"
+  },
+  "license": "MIT"
+}
