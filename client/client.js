@@ -32,6 +32,9 @@ window.__ModuleLoader__.load({
 		const IconFolderClose = (size) => icon("IconFolderCloseRegular", size);
 		const IconChevron = (open) => h("span", { className: "wg-chev" + (open ? " wg-chev-open" : "") }, icon("IconTriangleRightFillRegular", 10));
 		const IconAddFolder = (size) => icon("IconProjectAddOutlineRegular", size ?? 16);
+		const IconGroupAdd = (size) => icon("IconAppsAddOutlineRegular", size ?? 16);
+		const IconSearch = (size) => icon("IconSearchOutlineRegular", size ?? 16);
+		const IconViewOpts = (size) => icon("IconSlidersTwoOutlineRegular", size ?? 16);
 		const IconAdd = (size) => icon("IconPlusOutlineRegular", size ?? 14);
 		const IconMore = (size) => icon("IconEllipsisOutlineRegular", size ?? 16);
 		const IconEdit = (size) => icon("IconEditOutlineRegular", size ?? 14);
@@ -44,7 +47,10 @@ window.__ModuleLoader__.load({
 .wg-root{display:flex;flex-direction:column;min-height:0;height:100%;padding:2px 0 0;color:var(--dsw-alias-label-primary)}
 .wg-header{display:flex;align-items:center;gap:6px;padding:2px 10px 6px 12px;min-height:26px}
 .wg-header-title{font-size:12px;font-weight:500;letter-spacing:.02em;color:var(--dsw-alias-label-secondary);flex:1 1 auto;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wg-header-actions{display:flex;align-items:center;gap:2px;flex:none}
+.wg-header-actions{display:flex;align-items:center;gap:4px;flex:none}
+.wg-search{display:flex;align-items:center;gap:6px;margin:0 10px 6px 12px;height:28px;padding:0 8px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.045))}
+.wg-search-icon{display:inline-flex;align-items:center;color:var(--dsw-alias-label-tertiary,#9aa0aa);flex:none}
+.wg-search-input{flex:1 1 auto;min-width:0;height:24px;border:0;background:transparent;outline:none;font:inherit;font-size:12.5px;color:inherit}
 .wg-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;flex:none}
 .wg-iconbtn:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .wg-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 6px 12px}
@@ -125,7 +131,8 @@ window.__ModuleLoader__.load({
 				init: () => ({
 					groups: [],
 					ungroupedCollapsed: false,
-					expanded: {}
+					expanded: {},
+					sessionSort: "updated"
 				}),
 				persist: PERSIST_KEY,
 				actions: {
@@ -180,6 +187,13 @@ window.__ModuleLoader__.load({
 					},
 					setWorkspaceExpanded: (draft, workspaceId, expanded) => {
 						draft.expanded[workspaceId] = expanded === true;
+					},
+					setSessionSort: (draft, mode) => {
+						if (mode === "updated" || mode === "name") draft.sessionSort = mode;
+					},
+					setAllGroupsCollapsed: (draft, collapsed) => {
+						for (const group of draft.groups) group.collapsed = collapsed === true;
+						draft.ungroupedCollapsed = collapsed === true;
 					}
 				}
 			});
@@ -281,6 +295,8 @@ window.__ModuleLoader__.load({
 			const [toast, setToast] = react.useState("");
 			const [dropTarget, setDropTarget] = react.useState(null);
 			const [limit, setLimit] = react.useState({});
+			const [searchOpen, setSearchOpen] = react.useState(false);
+			const [search, setSearch] = react.useState("");
 
 			const notify = react.useCallback((message) => {
 				setToast(message);
@@ -343,14 +359,18 @@ window.__ModuleLoader__.load({
 						if (archived.has(session.id)) continue;
 						rows.push(session);
 					}
-					rows.sort((left, right) => {
-						const a = Date.parse(left.updatedAt ?? "") || 0;
-						const b = Date.parse(right.updatedAt ?? "") || 0;
-						return b - a;
-					});
+					if (view.sessionSort === "name") {
+						rows.sort((left, right) => String(left.title ?? "").localeCompare(String(right.title ?? ""), "zh"));
+					} else {
+						rows.sort((left, right) => {
+							const a = Date.parse(left.updatedAt ?? "") || 0;
+							const b = Date.parse(right.updatedAt ?? "") || 0;
+							return b - a;
+						});
+					}
 					return rows;
 				},
-				[byId, archived, currentSessionId]
+				[byId, archived, currentSessionId, view.sessionSort]
 			);
 
 			const workspaceById = react.useMemo(() => {
@@ -372,6 +392,27 @@ window.__ModuleLoader__.load({
 				return { kind: "group", id: group.id, name: group.name, collapsed: group.collapsed === true, members };
 			});
 			const loose = workspaces.filter((workspace) => !assigned.has(workspace.workspaceId));
+
+			const query = search.trim().toLowerCase();
+			const searchActive = query !== "";
+			const matchesQuery = (value) => String(value ?? "").toLowerCase().includes(query);
+			const visibleSessionsOf = (workspace) => {
+				const all = sessionsOf(workspace);
+				if (!searchActive) return all;
+				if (matchesQuery(workspace.title) || matchesQuery(workspace.path)) return all;
+				return all.filter((session) => matchesQuery(session.title));
+			};
+			const workspaceVisible = (workspace) =>
+				!searchActive || matchesQuery(workspace.title) || matchesQuery(workspace.path) || visibleSessionsOf(workspace).length > 0;
+			const shownSections = sections
+				.map((section) => {
+					if (!searchActive) return section;
+					const nameHit = matchesQuery(section.name);
+					const members = nameHit ? section.members : section.members.filter(workspaceVisible);
+					return { ...section, members, collapsed: false, nameHit };
+				})
+				.filter((section) => !searchActive || section.nameHit === true || section.members.length > 0);
+			const looseShown = searchActive ? loose.filter(workspaceVisible) : loose;
 
 			// ---- interactions ----
 			const toggleGroup = (section) => {
@@ -504,11 +545,11 @@ window.__ModuleLoader__.load({
 			};
 
 			const renderWorkspaceRow = (workspace) => {
-				const sessions = sessionsOf(workspace);
-				const expanded = view.expanded?.[workspace.workspaceId] === true;
-				const shown = limit[workspace.workspaceId] ?? SESSION_PAGE;
+				const sessions = visibleSessionsOf(workspace);
+				const expanded = searchActive ? true : view.expanded?.[workspace.workspaceId] === true;
+				const shown = searchActive ? sessions.length : limit[workspace.workspaceId] ?? SESSION_PAGE;
 				const visible = sessions.slice(0, shown);
-				const hidden = sessions.length - visible.length;
+				const hidden = searchActive ? 0 : sessions.length - visible.length;
 				const title = workspace.title !== undefined && workspace.title.trim() !== "" ? workspace.title : workspace.path;
 				const rows = [
 					h(
@@ -676,14 +717,15 @@ window.__ModuleLoader__.load({
 				return h("div", { key: `${section.kind}-${section.id}`, className: "wg-group" }, renderGroupHeader(section), children);
 			};
 
-			const sectionList = sections.slice();
-			if (loose.length > 0 || sections.length === 0) {
+			const sectionList = shownSections.slice();
+			const showUngrouped = looseShown.length > 0 || (!searchActive && sections.length === 0);
+			if (showUngrouped) {
 				sectionList.push({
 					kind: "ungrouped",
 					id: UNGROUPED,
 					name: "未分组",
-					collapsed: sections.length > 0 ? view.ungroupedCollapsed === true : false,
-					members: loose
+					collapsed: searchActive ? false : view.ungroupedCollapsed === true,
+					members: looseShown
 				});
 			}
 
@@ -778,6 +820,16 @@ window.__ModuleLoader__.load({
 							},
 							"归档会话"
 						)
+					);
+				} else if (menu.kind === "view") {
+					const sort = view.sessionSort === "name" ? "name" : "updated";
+					items.push(
+						h("button", { key: "expand", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.setAllGroupsCollapsed(false); } }, "展开全部分区"),
+						h("button", { key: "collapse", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.setAllGroupsCollapsed(true); } }, "折叠全部分区"),
+						h("div", { key: "sep", className: "wg-menu-sep" }),
+						h("div", { key: "sort-label", className: "wg-menu-label" }, "会话排序"),
+						h("button", { key: "sort-updated", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.setSessionSort("updated"); } }, (sort === "updated" ? "✓ " : "　 ") + "最近更新"),
+						h("button", { key: "sort-name", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.setSessionSort("name"); } }, (sort === "name" ? "✓ " : "　 ") + "名称")
 					);
 				}
 				const style = {
@@ -989,7 +1041,35 @@ window.__ModuleLoader__.load({
 								title: "新建分区",
 								onClick: () => setCreating({ value: "" })
 							},
-							IconAdd(15)
+							IconGroupAdd(16)
+						),
+						h(
+							"button",
+							{
+								type: "button",
+								className: "wg-iconbtn",
+								title: "搜索",
+								"aria-pressed": searchOpen,
+								onClick: () => {
+									if (searchOpen) {
+										setSearch("");
+										setSearchOpen(false);
+									} else {
+										setSearchOpen(true);
+									}
+								}
+							},
+							IconSearch(16)
+						),
+						h(
+							"button",
+							{
+								type: "button",
+								className: "wg-iconbtn",
+								title: "视图选项",
+								onClick: (event) => openMenu(event, "view", "view")
+							},
+							IconViewOpts(16)
 						),
 						props.hasDirectoryFlow === true || props.createWorkspace !== undefined
 							? h(
@@ -1000,12 +1080,39 @@ window.__ModuleLoader__.load({
 							: null
 					)
 				),
+				searchOpen
+					? h(
+							"div",
+							{ className: "wg-search" },
+							h("span", { className: "wg-search-icon" }, IconSearch(14)),
+							h("input", {
+								className: "wg-search-input",
+								autoFocus: true,
+								placeholder: "搜索工作区或会话",
+								value: search,
+								onChange: (event) => setSearch(event.currentTarget.value),
+								onKeyDown: (event) => {
+									if (event.key === "Escape") {
+										setSearch("");
+										setSearchOpen(false);
+									}
+								}
+							}),
+							search !== ""
+								? h(
+										"button",
+										{ type: "button", className: "wg-iconbtn", title: "清除", onClick: () => setSearch("") },
+										IconClose(12)
+									)
+								: null
+						)
+					: null,
 				h(
 					"div",
 					{ className: "wg-list", role: "tree", "aria-label": "工作区" },
 					creatingRow,
 					sectionList.length === 0
-						? h("div", { className: "wg-empty" }, "还没有工作区。点击右上角按钮添加一个目录。")
+						? h("div", { className: "wg-empty" }, searchActive ? "没有匹配的工作区或会话" : "还没有工作区。点击右上角按钮添加一个目录。")
 						: sectionList.map(renderSection)
 				),
 				menuContent(),
