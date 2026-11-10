@@ -1052,8 +1052,7 @@ window.__ModuleLoader__.load({
 					if (section === undefined) return null;
 					const isUngrouped = section.kind === "ungrouped";
 					items.push(
-						h("button", { key: "rename", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setEditingGroup({ id: section.id, value: section.name }); } }, IconEdit(14), isUngrouped ? "重命名并转为分区" : "重命名分区"),
-						h("button", { key: "new", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setCreating({ value: "" }); } }, IconAdd(14), "新建分区")
+						h("button", { key: "rename", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setEditingGroup({ id: section.id, value: section.name }); } }, IconEdit(14), isUngrouped ? "重命名并转为分区" : "重命名分区")
 					);
 					if (!isUngrouped) {
 						items.push(
