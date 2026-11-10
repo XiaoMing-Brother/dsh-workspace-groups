@@ -33,13 +33,14 @@ dsh plugin --profile web add github:XiaoMing-Brother/dsh-workspace-groups
 
 ### 桌面版（Electron，profile `desktop`）
 
-桌面 profile 由应用独占管理，不能使用上面的命令。先把仓库克隆到本地：
+桌面 profile 由应用独占管理，不能使用 `dsh plugin` 命令。用应用内的「插件」面板安装即可（同样是从仓库安装）：
 
-```powershell
-git clone https://github.com/XiaoMing-Brother/dsh-workspace-groups.git
-```
+1. 打开 DSH 桌面版 →「插件」；
+2. 选择「安装第三方插件」；
+3. 输入仓库地址 `https://github.com/XiaoMing-Brother/dsh-workspace-groups` 并安装；
+4. 按提示重启应用（或在插件面板禁用 / 启用一次）后生效。
 
-然后在 DSH 的「插件」面板里选择**从本地目录安装**，指向刚克隆出来的 `dsh-workspace-groups` 目录。
+> 等价做法：把 `~/.dsh/profiles/desktop` 的依赖设为 `github:XiaoMing-Brother/dsh-workspace-groups`（本机已按此方式配置）。
 
 ### 生效方式
 
@@ -53,7 +54,7 @@ Web 版重新执行同一条安装命令即可拉取仓库最新提交：
 dsh plugin --profile web add github:XiaoMing-Brother/dsh-workspace-groups
 ```
 
-桌面版重新克隆 / 覆盖本地目录后，在「插件」面板里重载即可。
+桌面版在「插件」面板卸载后重新安装（或直接重启应用）即可拿到仓库最新提交。
 
 ## 卸载
 
