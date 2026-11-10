@@ -23,7 +23,13 @@ DSH 自带的侧边栏把工作区平铺成一列（或按真实路径做「工�
 Web 版（`dsh web`，profile 名 `web`）：
 
 ```powershell
-dsh plugin --profile web add link:E:/个人代码/dsh-group-workspace
+dsh plugin --profile web add github:XiaoMing-Brother/dsh-workspace-groups
+```
+
+本地开发时也可以链接源码目录（改成你自己的插件目录）：
+
+```powershell
+dsh plugin --profile web add link:<本地插件目录>
 ```
 
 桌面版（Electron，profile `desktop`）由应用自身管理，用应用内「插件」面板从本地目录安装，或按下节手动同步。
@@ -58,11 +64,11 @@ dsh plugin --profile web remove dsh-workspace-groups
 ## 目录
 
 ```
-dsh-group-workspace/
+dsh-workspace-groups/
 ├─ package.json          # dsh.bundle.patch + dsh.client.inject 声明
 ├─ cordis.patch.yml      # 把本插件插入 profile 的 loader 层
 ├─ lib/index.js          # 主机侧入口（本插件无主机逻辑，仅占位 + 日志）
 ├─ client/client.js      # 客户端 bundle（分组浏览器 + 占位接管）
-├─ docs/                 # 预览图
-└─ tools/                # 本地验证脚本（截图 / DOM 探针 / 交互回归），不随插件发布
+├─ docs/                 # 通用示意图（不含任何个人 / 项目信息）
+└─ README.md / LICENSE
 ```
