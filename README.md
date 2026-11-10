@@ -20,21 +20,39 @@ DSH 自带的侧边栏把工作区平铺成一列（或按真实路径做「工�
 
 ## 安装
 
-Web 版（`dsh web`，profile 名 `web`）：
+要求：DSH `0.2.2` 及以上（`dsh --version` 可查看）。
+
+### Web 版（`dsh web`，profile `web`）
+
+直接从 GitHub 仓库安装：
 
 ```powershell
 dsh plugin --profile web add github:XiaoMing-Brother/dsh-workspace-groups
 ```
 
-本地开发时也可以链接源码目录（改成你自己的插件目录）：
+### 桌面版（Electron，profile `desktop`）
+
+桌面 profile 由应用独占管理，不能使用上面的命令。先把仓库克隆到本地：
 
 ```powershell
-dsh plugin --profile web add link:<本地插件目录>
+git clone https://github.com/XiaoMing-Brother/dsh-workspace-groups.git
 ```
 
-桌面版（Electron，profile `desktop`）由应用自身管理，用应用内「插件」面板从本地目录安装，或按下节手动同步。
+然后在 DSH 的「插件」面板里选择**从本地目录安装**，指向刚克隆出来的 `dsh-workspace-groups` 目录。
 
-装好后 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles` 会多出 `dsh-workspace-groups`。客户端 bundle 是预构建的单文件（`client/client.js`），**没有构建步骤**；重载页面即可生效，插件管理面板里禁用再启用也能即时重载。
+### 生效方式
+
+装好后 `~/.dsh/profiles/<profile>/package.json` 的 `dsh.profile.bundles` 会多出 `dsh-workspace-groups`。客户端 bundle 是预构建的单文件（`client/client.js`），**没有构建步骤**：重载页面即生效；若仍是旧界面，在插件面板把 `dsh-workspace-groups` 禁用再启用一次。
+
+## 更新
+
+Web 版重新执行同一条安装命令即可拉取仓库最新提交：
+
+```powershell
+dsh plugin --profile web add github:XiaoMing-Brother/dsh-workspace-groups
+```
+
+桌面版重新克隆 / 覆盖本地目录后，在「插件」面板里重载即可。
 
 ## 卸载
 
