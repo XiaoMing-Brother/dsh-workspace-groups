@@ -4,7 +4,7 @@
 
 | 展开一个分区 | 收起后只剩分区 |
 | --- | --- |
-| ![展开](docs/preview.png) | ![收起](docs/preview-collapsed.png) |
+| ![展开](docs/preview.svg) | ![收起](docs/preview-collapsed.svg) |
 
 ## 它做了什么
 
