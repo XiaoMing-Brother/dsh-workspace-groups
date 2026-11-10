@@ -194,6 +194,16 @@ window.__ModuleLoader__.load({
 					setAllGroupsCollapsed: (draft, collapsed) => {
 						for (const group of draft.groups) group.collapsed = collapsed === true;
 						draft.ungroupedCollapsed = collapsed === true;
+					},
+					promoteUngrouped: (draft, name, workspaceIds) => {
+						const label = String(name ?? "").trim();
+						if (label === "" || !Array.isArray(workspaceIds) || workspaceIds.length === 0) return;
+						draft.groups.push({
+							id: newGroupId(),
+							name: label,
+							collapsed: false,
+							workspaceIds: [...new Set(workspaceIds)]
+						});
 					}
 				}
 			});
@@ -479,7 +489,11 @@ window.__ModuleLoader__.load({
 			};
 
 			const commitGroupRename = (id, value) => {
-				actions.renameGroup(id, value);
+				if (id === UNGROUPED) {
+					actions.promoteUngrouped(value, loose.map((workspace) => workspace.workspaceId));
+				} else {
+					actions.renameGroup(id, value);
+				}
 				setEditingGroup(null);
 			};
 
@@ -669,7 +683,7 @@ window.__ModuleLoader__.load({
 							{
 								type: "button",
 								className: "wg-iconbtn",
-								title: "重命名分区",
+								title: section.kind === "ungrouped" ? "重命名并转为分区" : "重命名分区",
 								onClick: (event) => {
 									stop(event);
 									setEditingGroup({ id: section.id, value: section.name });
@@ -677,19 +691,21 @@ window.__ModuleLoader__.load({
 							},
 							IconEdit(14)
 						),
-						h(
-							"button",
-							{
-								type: "button",
-								className: "wg-iconbtn",
-								title: "删除分区（工作区保留）",
-								onClick: (event) => {
-									stop(event);
-									actions.deleteGroup(section.id);
-								}
-							},
-							IconTrash(14)
-						),
+						section.kind === "ungrouped"
+							? null
+							: h(
+									"button",
+									{
+										type: "button",
+										className: "wg-iconbtn",
+										title: "删除分区（工作区保留）",
+										onClick: (event) => {
+											stop(event);
+											actions.deleteGroup(section.id);
+										}
+									},
+									IconTrash(14)
+								),
 						h(
 							"button",
 							{
@@ -733,16 +749,21 @@ window.__ModuleLoader__.load({
 				if (menu === null) return null;
 				const items = [];
 				if (menu.kind === "group") {
-					const section = sections.find((entry) => entry.id === menu.id);
+					const section = sectionList.find((entry) => entry.id === menu.id);
 					if (section === undefined) return null;
+					const isUngrouped = section.kind === "ungrouped";
 					items.push(
-						h("button", { key: "rename", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setEditingGroup({ id: section.id, value: section.name }); } }, IconEdit(14), "重命名分区"),
-						h("button", { key: "new", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setCreating({ value: "" }); } }, IconAdd(14), "新建分区"),
-						h("button", { key: "up", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.moveGroup(section.id, -1); } }, "上移分区"),
-						h("button", { key: "down", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.moveGroup(section.id, 1); } }, "下移分区"),
-						h("div", { key: "sep", className: "wg-menu-sep" }),
-						h("button", { key: "del", type: "button", className: "wg-menu-item wg-danger", onClick: () => { setMenu(null); actions.deleteGroup(section.id); } }, IconTrash(14), "删除分区（工作区保留）")
+						h("button", { key: "rename", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setEditingGroup({ id: section.id, value: section.name }); } }, IconEdit(14), isUngrouped ? "重命名并转为分区" : "重命名分区"),
+						h("button", { key: "new", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); setCreating({ value: "" }); } }, IconAdd(14), "新建分区")
 					);
+					if (!isUngrouped) {
+						items.push(
+							h("button", { key: "up", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.moveGroup(section.id, -1); } }, "上移分区"),
+							h("button", { key: "down", type: "button", className: "wg-menu-item", onClick: () => { setMenu(null); actions.moveGroup(section.id, 1); } }, "下移分区"),
+							h("div", { key: "sep", className: "wg-menu-sep" }),
+							h("button", { key: "del", type: "button", className: "wg-menu-item wg-danger", onClick: () => { setMenu(null); actions.deleteGroup(section.id); } }, IconTrash(14), "删除分区（工作区保留）")
+						);
+					}
 				} else if (menu.kind === "workspace") {
 					const workspace = workspaceById.get(menu.id);
 					if (workspace === undefined) return null;
