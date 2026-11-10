@@ -54,7 +54,7 @@ window.__ModuleLoader__.load({
 .wg-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;flex:none}
 .wg-iconbtn:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .wg-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 6px 12px}
-.wg-group{margin-bottom:2px;border-radius:var(--dsw-radius-sm,6px)}
+.wg-group{margin-bottom:6px;border-radius:var(--dsw-radius-sm,6px)}
 .wg-group-row{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 6px 0 4px;border-radius:var(--dsw-radius-sm,6px);cursor:default;user-select:none}
 .wg-group-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .wg-group-row.wg-drop{background:var(--dsw-alias-interactive-bg-hover);box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary,#4d6bfe)}
@@ -67,14 +67,15 @@ window.__ModuleLoader__.load({
 .wg-actions{display:none;align-items:center;gap:1px;flex:none}
 .wg-group-row:hover .wg-actions,.wg-ws-row:hover .wg-actions,.wg-session-row:hover .wg-actions{display:inline-flex}
 .wg-group-row:hover .wg-count,.wg-ws-row:hover .wg-count{display:none}
-.wg-ws-row{display:flex;align-items:center;gap:6px;min-height:28px;padding:0 6px 0 18px;border-radius:var(--dsw-radius-sm,6px);cursor:default;user-select:none}
+.wg-ws-row{display:flex;align-items:center;gap:6px;min-height:28px;margin-top:12px;padding:0 6px 0 18px;border-radius:var(--dsw-radius-sm,6px);cursor:default;user-select:none}
+.wg-group-row + .wg-ws-row{margin-top:0}
 .wg-ws-chev{display:inline-flex;align-items:center;justify-content:center;width:10px;height:14px;flex:none;color:var(--dsw-alias-label-secondary);opacity:0;transition:transform .15s ease,opacity .1s ease}
 .wg-ws-row:hover .wg-ws-chev{opacity:.55}
 .wg-ws-chev.wg-chev-open{transform:rotate(90deg)}
 .wg-ws-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .wg-ws-row.wg-active{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.12))}
 .wg-ws-row.wg-drop{box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary,#4d6bfe)}
-.wg-session-row{display:flex;align-items:center;gap:6px;min-height:26px;padding:0 6px 0 40px;border-radius:var(--dsw-radius-sm,6px);cursor:default;user-select:none}
+.wg-session-row{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 6px 0 40px;border-radius:var(--dsw-radius-sm,6px);cursor:default;user-select:none}
 .wg-session-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .wg-session-row.wg-active{background:var(--dsw-alias-interactive-bg-selected,rgba(77,107,254,.12))}
 .wg-session-title{font-size:12.5px;line-height:17px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}
@@ -132,7 +133,11 @@ window.__ModuleLoader__.load({
 					groups: [],
 					ungroupedCollapsed: false,
 					expanded: {},
-					sessionSort: "updated"
+					sessionSort: "updated",
+					// Native view options (mirrors dsh-client-ui-workspace's view store).
+					groupBy: "workspace",
+					orderBy: "updated",
+					archivedFilter: "default"
 				}),
 				persist: PERSIST_KEY,
 				actions: {
@@ -190,6 +195,15 @@ window.__ModuleLoader__.load({
 					},
 					setSessionSort: (draft, mode) => {
 						if (mode === "updated" || mode === "name") draft.sessionSort = mode;
+					},
+					setGroupBy: (draft, mode) => {
+						if (mode === "workspace" || mode === "workspaceTree" || mode === "flat") draft.groupBy = mode;
+					},
+					setOrderBy: (draft, mode) => {
+						if (mode === "manual" || mode === "updated") draft.orderBy = mode;
+					},
+					setArchivedFilter: (draft, mode) => {
+						if (mode === "default" || mode === "show" || mode === "only") draft.archivedFilter = mode;
 					},
 					setAllGroupsCollapsed: (draft, collapsed) => {
 						for (const group of draft.groups) group.collapsed = collapsed === true;
@@ -267,6 +281,71 @@ window.__ModuleLoader__.load({
 			}
 		}
 
+		// Native "视图选项" menu, ported 1:1 from dsh-client-ui-workspace's ViewOptionsMenu
+		// (same items, labels, icons, selection + Menu/Tooltip primitives) so the button
+		// behaves exactly like the built-in browser. Grouping/order/archive are applied to
+		// this plugin's partitioned list in BrowserBody.
+		function NativeViewMenu({ groupBy, orderBy, archivedFilter, onGroup, onOrder, onArchived }) {
+			const [open, setOpen] = react.useState(false);
+			const item = (id, label, iconName) => ({ id, label, icon: icon(iconName, 16) });
+			const items = [
+				{ type: "label", id: "group-by", text: "分组方式" },
+				item("workspace", "按工作区", "IconFolderCloseRegular"),
+				item("workspaceTree", "按工作区树", "IconWorkspaceTreeOutlineRegular"),
+				item("flat", "单列表", "IconFlatListOutlineRegular"),
+				{ type: "separator", id: "order-by-separator" },
+				{ type: "label", id: "order-by", text: "排序方式" },
+				item("manual", "手动排序", "IconChevronsUpDownOutlineRegular"),
+				item("updated", "最近更新", "IconClockOutlineRegular"),
+				{ type: "separator", id: "archived-filter-separator" },
+				{ type: "label", id: "filter-by", text: "筛选会话" },
+				item("hide-archived", "隐藏已归档", "IconArchiveOffOutlineRegular"),
+				item("show-archived", "全部对话（显示已归档）", "IconQueueOutlineRegular"),
+				item("only-archived", "仅显示已归档", "IconArchiveCheckOutlineRegular")
+			];
+			const archivedId = { default: "hide-archived", show: "show-archived", only: "only-archived" }[archivedFilter] ?? "hide-archived";
+			const anchor = h(
+				primitives.Tooltip,
+				{
+					label: "视图选项",
+					side: "bottom",
+					delayMs: 500,
+					portal: true,
+					children: h(
+						"button",
+						{
+							type: "button",
+							className: "wg-iconbtn",
+							"aria-label": "视图选项",
+							onClick: () => setOpen((value) => !value)
+						},
+						icon("IconSlidersTwoOutlineRegular", 16)
+					)
+				}
+			);
+			if (typeof primitives.Menu !== "function") {
+				return anchor;
+			}
+			return h(primitives.Menu, {
+				open,
+				onClose: () => setOpen(false),
+				items,
+				selectedIds: [groupBy, orderBy, archivedId],
+				onSelect: (id) => {
+					if (id === "workspace" || id === "workspaceTree" || id === "flat") onGroup(id);
+					else if (id === "manual" || id === "updated") onOrder(id);
+					else if (id === "hide-archived") onArchived("default");
+					else if (id === "show-archived") onArchived("show");
+					else if (id === "only-archived") onArchived("only");
+					setOpen(false);
+				},
+				align: "end",
+				dense: true,
+				portal: true,
+				anchor
+			});
+		}
+
 		function GroupedWorkspaceBrowser(props) {
 			const ready =
 				typeof props.useStore === "function" &&
@@ -307,6 +386,24 @@ window.__ModuleLoader__.load({
 			const [limit, setLimit] = react.useState({});
 			const [searchOpen, setSearchOpen] = react.useState(false);
 			const [search, setSearch] = react.useState("");
+			const [remoteSearch, setRemoteSearch] = react.useState({ query: "", status: "idle", items: [], hasMore: false });
+			const [wsFlow, setWsFlow] = react.useState({ open: false, busy: false });
+
+			// View options (native semantics), tolerant of older persisted stores.
+			const groupBy = view.groupBy === "flat" || view.groupBy === "workspaceTree" ? view.groupBy : "workspace";
+			const orderBy = view.orderBy === "manual" ? "manual" : "updated";
+			const archivedFilter = view.archivedFilter === "show" || view.archivedFilter === "only" ? view.archivedFilter : "default";
+
+			// Keep the native session-search callback off the effect dependency list.
+			const searchSessionsRef = react.useRef(null);
+			searchSessionsRef.current = typeof props.searchSessions === "function" ? props.searchSessions : null;
+
+			// Live availability of the native directory-flow slot (browse/native picker).
+			const directoryFlowSource = props.directoryFlowSource;
+			const hasDirectoryFlow = react.useSyncExternalStore(
+				directoryFlowSource && typeof directoryFlowSource.subscribe === "function" ? directoryFlowSource.subscribe : () => () => {},
+				directoryFlowSource && typeof directoryFlowSource.getSnapshot === "function" ? directoryFlowSource.getSnapshot : () => false
+			);
 
 			const notify = react.useCallback((message) => {
 				setToast(message);
@@ -317,6 +414,39 @@ window.__ModuleLoader__.load({
 				const timer = setTimeout(() => setToast(""), 3200);
 				return () => clearTimeout(timer);
 			}, [toast]);
+
+			// Native session-history search: debounced `sessions.search` over the same
+			// RPC the built-in browser uses; local title/workspace matches merge in below.
+			react.useEffect(() => {
+				const q = search.trim();
+				if (q === "") {
+					setRemoteSearch({ query: "", status: "idle", items: [], hasMore: false });
+					return undefined;
+				}
+				const searchSessions = searchSessionsRef.current;
+				if (searchSessions === null) {
+					setRemoteSearch({ query: q, status: "ready", items: [], hasMore: false });
+					return undefined;
+				}
+				const controller = new AbortController();
+				setRemoteSearch({ query: q, status: "loading", items: [], hasMore: false });
+				const timer = setTimeout(() => {
+					searchSessions(q, controller.signal).then(
+						(result) => {
+							if (controller.signal.aborted) return;
+							setRemoteSearch({ query: q, status: "ready", items: (result && result.items) || [], hasMore: result && result.hasMore === true });
+						},
+						() => {
+							if (controller.signal.aborted) return;
+							setRemoteSearch({ query: q, status: "ready", items: [], hasMore: false });
+						}
+					);
+				}, 250);
+				return () => {
+					clearTimeout(timer);
+					controller.abort();
+				};
+			}, [search]);
 
 			react.useEffect(() => {
 				if (menu === null) return undefined;
@@ -349,15 +479,6 @@ window.__ModuleLoader__.load({
 				return undefined;
 			}, [ids, byId]);
 
-			const currentWorkspaceId = (() => {
-				const session = currentSessionId === undefined ? undefined : byId[currentSessionId];
-				if (session === undefined) return undefined;
-				for (const workspace of workspaces) {
-					if (workspace.sessionIds.includes(session.id)) return workspace.workspaceId;
-				}
-				return undefined;
-			})();
-
 			const sessionsOf = react.useCallback(
 				(workspace) => {
 					const rows = [];
@@ -366,10 +487,14 @@ window.__ModuleLoader__.load({
 						if (session === undefined) continue;
 						if (session.origin === "subagent") continue;
 						if (session.blank === true && session.id !== currentSessionId) continue;
-						if (archived.has(session.id)) continue;
+						const isArchived = archived.has(session.id);
+						if (archivedFilter === "default" && isArchived) continue;
+						if (archivedFilter === "only" && !isArchived) continue;
 						rows.push(session);
 					}
-					if (view.sessionSort === "name") {
+					if (orderBy === "manual") {
+						// No persisted manual session order in this plugin: fall back to name,
+						// which is stable and mirrors the old "名称" sort until dragged.
 						rows.sort((left, right) => String(left.title ?? "").localeCompare(String(right.title ?? ""), "zh"));
 					} else {
 						rows.sort((left, right) => {
@@ -380,7 +505,7 @@ window.__ModuleLoader__.load({
 					}
 					return rows;
 				},
-				[byId, archived, currentSessionId, view.sessionSort]
+				[byId, archived, currentSessionId, archivedFilter, orderBy]
 			);
 
 			const workspaceById = react.useMemo(() => {
@@ -388,6 +513,60 @@ window.__ModuleLoader__.load({
 				for (const workspace of workspaces) map.set(workspace.workspaceId, workspace);
 				return map;
 			}, [workspaces]);
+
+			// Port of the native deriveSearchResults: local title/workspace/id matches
+			// first, then remote session-history hits, deduped and recency-ordered.
+			const searchRows = react.useMemo(() => {
+				const q = search.trim().toLowerCase();
+				const limit = typeof props.searchResultLimit === "number" ? props.searchResultLimit : 20;
+				if (q === "") return { items: [], hasMore: false, pending: false };
+				const workspaceTitleBySession = new Map();
+				for (const workspace of workspaces) {
+					for (const sid of workspace.sessionIds) if (!workspaceTitleBySession.has(sid)) workspaceTitleBySession.set(sid, workspace.title);
+				}
+				const labelOf = (session) => workspaceTitleBySession.get(session.id) ?? session.cwd ?? "未分组";
+				const passesArchive = (session) => {
+					const isArchived = archived.has(session.id);
+					if (archivedFilter === "default" && isArchived) return false;
+					if (archivedFilter === "only" && !isArchived) return false;
+					return true;
+				};
+				const current = remoteSearch.query === search.trim() ? remoteSearch : { query: search.trim(), status: "loading", items: [], hasMore: false };
+				const contentBySession = new Map();
+				for (const entry of current.items ?? []) if (!contentBySession.has(entry.sessionId)) contentBySession.set(entry.sessionId, entry);
+				const local = [];
+				for (const id of ids) {
+					const session = byId[id];
+					if (session === undefined || session.blank === true || !passesArchive(session)) continue;
+					const title = String(session.title ?? "");
+					if (title.toLowerCase().includes(q) || String(labelOf(session)).toLowerCase().includes(q) || String(session.id).toLowerCase().includes(q)) local.push(session);
+				}
+				local.sort((left, right) => (Date.parse(right.updatedAt ?? "") || 0) - (Date.parse(left.updatedAt ?? "") || 0));
+				const seen = new Set();
+				const ordered = [];
+				for (const session of local) {
+					if (seen.has(session.id)) continue;
+					seen.add(session.id);
+					ordered.push(session);
+				}
+				for (const entry of current.items ?? []) {
+					const session = byId[entry.sessionId];
+					if (session === undefined || session.blank === true || seen.has(session.id) || !passesArchive(session)) continue;
+					seen.add(session.id);
+					ordered.push(session);
+				}
+				return {
+					items: ordered.slice(0, limit).map((session) => ({
+						session,
+						title: session.title !== undefined && String(session.title).trim() !== "" ? session.title : "未命名会话",
+						workspace: labelOf(session),
+						archived: archived.has(session.id),
+						snippet: contentBySession.get(session.id)?.snippet
+					})),
+					hasMore: (current.hasMore === true) || ordered.length > limit,
+					pending: current.status === "loading"
+				};
+			}, [search, ids, byId, workspaces, archived, archivedFilter, remoteSearch, props.searchResultLimit]);
 
 			const groups = view.groups ?? EMPTY_LIST;
 			const assigned = new Set();
@@ -488,6 +667,64 @@ window.__ModuleLoader__.load({
 				);
 			};
 
+			// Native "添加工作区": same native directory picker the built-in browser drives.
+			// Prefer the host directory picker (identical backend the native picker uses);
+			// if it is unavailable, fall back to the directory-flow slot; otherwise the
+			// native "目录选择器不可用" notification — never the old text-path dialog.
+			const openAddWorkspace = () => {
+				if (typeof props.pickDirectory === "function") {
+					Promise.resolve()
+						.then(() => props.pickDirectory())
+						.then(
+							(path) => {
+								if (typeof path === "string" && path !== "") adoptPath(path);
+							},
+							() => {
+								if (typeof props.renderSlot === "function" && hasDirectoryFlow) setWsFlow({ open: true, busy: false });
+								else notify("目录选择器不可用");
+							}
+						);
+					return;
+				}
+				if (typeof props.renderSlot === "function" && hasDirectoryFlow) {
+					setWsFlow({ open: true, busy: false });
+					return;
+				}
+				notify("目录选择器不可用");
+			};
+
+			const wsFlowOwner = {
+				open: wsFlow.open,
+				busy: wsFlow.busy,
+				onPicked: (path) => {
+					if (typeof path !== "string" || path === "") {
+						setWsFlow({ open: false, busy: false });
+						return;
+					}
+					if (typeof props.createWorkspace !== "function") {
+						setWsFlow({ open: false, busy: false });
+						return;
+					}
+					setWsFlow({ open: true, busy: true });
+					props.createWorkspace(path).then(
+						(workspace) => {
+							setWsFlow({ open: false, busy: false });
+							if (workspace !== undefined && workspace.workspaceId !== undefined) startInWorkspace(workspace.workspaceId);
+						},
+						(reason) => {
+							setWsFlow({ open: false, busy: false });
+							const message = reason instanceof Error ? reason.message : String(reason);
+							setDialog({ kind: "confirm", title: "无法打开文件夹", body: message, onConfirm: () => { setDialog(null); setWsFlow({ open: true, busy: false }); } });
+						}
+					);
+				},
+				onCancel: () => setWsFlow({ open: false, busy: false }),
+				onError: (message) => {
+					setWsFlow({ open: false, busy: false });
+					setDialog({ kind: "confirm", title: "无法打开文件夹", body: String(message), onConfirm: () => { setDialog(null); setWsFlow({ open: true, busy: false }); } });
+				}
+			};
+
 			const commitGroupRename = (id, value) => {
 				if (id === UNGROUPED) {
 					actions.promoteUngrouped(value, loose.map((workspace) => workspace.workspaceId));
@@ -558,6 +795,58 @@ window.__ModuleLoader__.load({
 				);
 			};
 
+			const renderSearchRow = (item) => {
+				const meta = item.archived ? `已归档 · ${item.workspace}` : item.snippet !== undefined ? `${item.workspace} · ${item.snippet}` : item.workspace;
+				return h(
+					"div",
+					{
+						key: `sr-${item.session.id}`,
+						className: "wg-session-row" + (item.session.id === currentSessionId ? " wg-active" : "") + (item.archived ? " wg-archived" : ""),
+						role: "treeitem",
+						title: item.title,
+						onClick: () => openSessionRow(item.session.id)
+					},
+					h("span", { className: "wg-dot wg-dot-idle" }),
+					h(
+						"span",
+						{ style: { display: "flex", flexDirection: "column", minWidth: 0, flex: "1 1 auto" } },
+						h("span", { className: "wg-session-title" }, item.title),
+						h("span", { style: { fontSize: "11px", lineHeight: "14px", color: "var(--dsw-alias-label-tertiary,#9aa0aa)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, meta)
+					),
+					h("span", { className: "wg-session-time" }, relativeTime(item.session.updatedAt))
+				);
+			};
+
+			const renderFlatRow = (session) => {
+				const title = session.title !== undefined && String(session.title).trim() !== "" ? session.title : "未命名会话";
+				let workspaceTitle = "";
+				for (const workspace of workspaces) {
+					if (workspace.sessionIds.includes(session.id)) {
+						workspaceTitle = workspace.title || workspace.path;
+						break;
+					}
+				}
+				const isArchived = archived.has(session.id);
+				return h(
+					"div",
+					{
+						key: `flat-${session.id}`,
+						className: "wg-session-row wg-flat-row" + (session.id === currentSessionId ? " wg-active" : ""),
+						role: "treeitem",
+						title,
+						onClick: () => openSessionRow(session.id)
+					},
+					h("span", { className: "wg-dot wg-dot-idle" }),
+					h(
+						"span",
+						{ style: { display: "flex", flexDirection: "column", minWidth: 0, flex: "1 1 auto" } },
+						h("span", { className: "wg-session-title" }, title),
+						h("span", { style: { fontSize: "11px", lineHeight: "14px", color: "var(--dsw-alias-label-tertiary,#9aa0aa)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, (isArchived ? "已归档 · " : "") + (workspaceTitle || "未分组"))
+					),
+					h("span", { className: "wg-session-time" }, relativeTime(session.updatedAt))
+				);
+			};
+
 			const renderWorkspaceRow = (workspace) => {
 				const sessions = visibleSessionsOf(workspace);
 				const expanded = searchActive ? true : view.expanded?.[workspace.workspaceId] === true;
@@ -572,7 +861,6 @@ window.__ModuleLoader__.load({
 							key: `ws-${workspace.workspaceId}`,
 							className:
 								"wg-ws-row" +
-								(workspace.workspaceId === currentWorkspaceId ? " wg-active" : "") +
 								(dropTarget === workspace.workspaceId ? " wg-drop" : ""),
 							role: "treeitem",
 							"aria-expanded": expanded,
@@ -744,6 +1032,17 @@ window.__ModuleLoader__.load({
 					members: looseShown
 				});
 			}
+
+			const flatRows = groupBy === "flat"
+				? (() => {
+						const rows = [];
+						for (const workspace of workspaces) {
+							for (const session of sessionsOf(workspace)) rows.push(session);
+						}
+						rows.sort((left, right) => (Date.parse(right.updatedAt ?? "") || 0) - (Date.parse(left.updatedAt ?? "") || 0));
+						return rows;
+					})()
+				: [];
 
 			const menuContent = () => {
 				if (menu === null) return null;
@@ -1050,7 +1349,7 @@ window.__ModuleLoader__.load({
 				h(
 					"div",
 					{ className: "wg-header" },
-					h("span", { className: "wg-header-title" }, "工作区"),
+					h("span", { className: "wg-header-title" }, groupBy === "flat" ? "会话" : "工作区"),
 					h(
 						"div",
 						{ className: "wg-header-actions" },
@@ -1082,20 +1381,18 @@ window.__ModuleLoader__.load({
 							},
 							IconSearch(16)
 						),
-						h(
-							"button",
-							{
-								type: "button",
-								className: "wg-iconbtn",
-								title: "视图选项",
-								onClick: (event) => openMenu(event, "view", "view")
-							},
-							IconViewOpts(16)
-						),
+						h(NativeViewMenu, {
+							groupBy,
+							orderBy,
+							archivedFilter,
+							onGroup: (mode) => actions.setGroupBy(mode),
+							onOrder: (mode) => actions.setOrderBy(mode),
+							onArchived: (mode) => actions.setArchivedFilter(mode)
+						}),
 						props.hasDirectoryFlow === true || props.createWorkspace !== undefined
 							? h(
 									"button",
-									{ type: "button", className: "wg-iconbtn", title: "添加工作区", onClick: addWorkspace },
+									{ type: "button", className: "wg-iconbtn", title: "添加工作区", onClick: openAddWorkspace },
 									IconAddFolder(16)
 								)
 							: null
@@ -1109,7 +1406,8 @@ window.__ModuleLoader__.load({
 							h("input", {
 								className: "wg-search-input",
 								autoFocus: true,
-								placeholder: "搜索工作区或会话",
+								placeholder: "搜索会话名称",
+								"aria-label": "搜索会话",
 								value: search,
 								onChange: (event) => setSearch(event.currentTarget.value),
 								onKeyDown: (event) => {
@@ -1130,14 +1428,42 @@ window.__ModuleLoader__.load({
 					: null,
 				h(
 					"div",
-					{ className: "wg-list", role: "tree", "aria-label": "工作区" },
-					creatingRow,
-					sectionList.length === 0
-						? h("div", { className: "wg-empty" }, searchActive ? "没有匹配的工作区或会话" : "还没有工作区。点击右上角按钮添加一个目录。")
-						: sectionList.map(renderSection)
+					{ className: "wg-list", role: "tree", "aria-label": searchActive ? "搜索结果" : groupBy === "flat" ? "会话" : "工作区" },
+					searchActive ? null : creatingRow,
+					searchActive
+						? searchRows.items.length === 0 && !searchRows.pending
+							? h("div", { className: "wg-empty" }, "无匹配会话")
+							: [
+									searchRows.items.map(renderSearchRow),
+									searchRows.pending ? h("div", { key: "search-pending", className: "wg-empty" }, "正在搜索会话历史…") : null,
+									searchRows.hasMore
+										? h(
+												"div",
+												{ key: "search-more", className: "wg-empty" },
+												`仅显示前 ${typeof props.searchResultLimit === "number" ? props.searchResultLimit : 20} 条结果，请缩小搜索范围。`
+											)
+										: null
+								]
+						: groupBy === "flat"
+							? flatRows.length === 0
+								? h("div", { className: "wg-empty" }, archivedFilter === "only" ? "暂无已归档会话" : "暂无会话")
+								: flatRows.map(renderFlatRow)
+							: sectionList.length === 0
+								? h("div", { className: "wg-empty" }, "还没有工作区。点击右上角按钮添加一个目录。")
+								: sectionList.map(renderSection)
 				),
 				menuContent(),
 				dialogContent(),
+				typeof props.renderSlot === "function"
+					? (() => {
+							try {
+								return props.renderSlot("sidebar.workspaces.directoryFlow", wsFlowOwner);
+							} catch (error) {
+								console.warn(LOG_PREFIX, "directory flow render failed", error);
+								return null;
+							}
+						})()
+					: null,
 				toast === "" ? null : h("div", { className: "wg-toast" }, toast)
 			);
 		}
@@ -1155,10 +1481,27 @@ window.__ModuleLoader__.load({
 			ensureStyles();
 			const workspaces = ctx.get("workspaces");
 			const uiWorkspace = ctx.get("uiWorkspace");
+			const sessions = ctx.get("sessions");
 
 			const handle = createGroupHandle();
 			const instance = handle.create();
 			const storeHandle = { ...handle, create: () => instance };
+
+			const searchSessions = async (query, signal) => {
+				if (sessions === undefined || typeof sessions.search !== "function") return { items: [], hasMore: false };
+				const result = await sessions.search(query, signal);
+				if (!result || result.ok !== true) throw new Error(result && result.error ? result.error.message : "session search failed");
+				return result.value;
+			};
+
+			// The native browser declares `sidebar.workspaces.directoryFlow` as its child;
+			// because this plugin out-seats it on the single slot, that declaration would
+			// vanish and the built-in directory pickers (browse/native) would have nowhere
+			// to register. Declare it here so the native add-workspace flow still mounts.
+			const directoryFlowSource = {
+				getSnapshot: () => ctx.slots.entries("sidebar.workspaces.directoryFlow").length > 0,
+				subscribe: (listener) => ctx.slots.subscribe("sidebar.workspaces.directoryFlow", listener)
+			};
 
 			const pickDirectory = async () => {
 				let picker;
@@ -1172,7 +1515,9 @@ window.__ModuleLoader__.load({
 				return typeof path === "string" ? path : null;
 			};
 
-			ctx.slots.inject(SLOT, () => ctx.slots.register(
+			ctx.slots.inject(SLOT, () => {
+				try {
+					return ctx.slots.register(
 				{
 					name: SLOT,
 					id: "workspace-groups",
@@ -1187,11 +1532,19 @@ window.__ModuleLoader__.load({
 						renameWorkspace: async (workspaceId, title) => workspaces.rename(workspaceId, title),
 						deleteWorkspace: async (workspaceId) => workspaces.delete(workspaceId),
 						pickDirectory,
-						hasDirectoryFlow: true
+						searchSessions,
+						searchResultLimit: sessions !== undefined && typeof sessions.searchResultLimit === "number" ? sessions.searchResultLimit : 20,
+						directoryFlowSource,
+						hasDirectoryFlow: ctx.slots.entries("sidebar.workspaces.directoryFlow").length > 0
 					})
 				},
 				GroupedWorkspaceBrowser
-			));
+			);
+				} catch (error) {
+					console.error(LOG_PREFIX, "slot register failed", error);
+					throw error;
+				}
+			});
 		}
 
 		exports.apply = apply;
