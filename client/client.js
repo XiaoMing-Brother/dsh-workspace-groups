@@ -49,6 +49,8 @@ window.__ModuleLoader__.load({
 .wg-header-title{font-size:12px;font-weight:500;letter-spacing:.02em;color:var(--dsw-alias-label-secondary);flex:1 1 auto;user-select:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wg-header-actions{display:flex;align-items:center;gap:4px;flex:none}
 .wg-search{display:flex;align-items:center;gap:6px;margin:0 10px 6px 12px;height:28px;padding:0 8px;border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.045))}
+.wg-search-inline{flex:1 1 auto;min-width:0;margin:0;height:26px}
+.wg-header-searching{padding-right:10px}
 .wg-search-icon{display:inline-flex;align-items:center;color:var(--dsw-alias-label-tertiary,#9aa0aa);flex:none}
 .wg-search-input{flex:1 1 auto;min-width:0;height:24px;border:0;background:transparent;outline:none;font:inherit;font-size:12.5px;color:inherit}
 .wg-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;flex:none}
@@ -667,30 +669,29 @@ window.__ModuleLoader__.load({
 				);
 			};
 
-			// Native "添加工作区": same native directory picker the built-in browser drives.
-			// Prefer the host directory picker (identical backend the native picker uses);
-			// if it is unavailable, fall back to the directory-flow slot; otherwise the
-			// native "目录选择器不可用" notification — never the old text-path dialog.
+			// Text-path fallback shared by the failure arms below.
+			const openAddWorkspacePathDialog = () => {
+				setDialog({
+					kind: "path",
+					title: "添加工作区（请输入目录绝对路径）",
+					value: "",
+					onSubmit: (value) => {
+						setDialog(null);
+						if (value.trim() !== "") adoptPath(value.trim());
+					}
+				});
+			};
+
+			// Native "添加工作区": drive the same directory flow the built-in browser uses.
+			// 1) If a directory-flow picker is mounted (native picker on desktop, browse
+			//    dialog on web), open it — exactly how the official add-workspace button works.
+			// 2) Otherwise show a text-path dialog so the button is never a dead end.
 			const openAddWorkspace = () => {
-				if (typeof props.pickDirectory === "function") {
-					Promise.resolve()
-						.then(() => props.pickDirectory())
-						.then(
-							(path) => {
-								if (typeof path === "string" && path !== "") adoptPath(path);
-							},
-							() => {
-								if (typeof props.renderSlot === "function" && hasDirectoryFlow) setWsFlow({ open: true, busy: false });
-								else notify("目录选择器不可用");
-							}
-						);
-					return;
-				}
 				if (typeof props.renderSlot === "function" && hasDirectoryFlow) {
 					setWsFlow({ open: true, busy: false });
 					return;
 				}
-				notify("目录选择器不可用");
+				openAddWorkspacePathDialog();
 			};
 
 			const wsFlowOwner = {
@@ -1347,84 +1348,66 @@ window.__ModuleLoader__.load({
 				{ className: "wg-root" },
 				h(
 					"div",
-					{ className: "wg-header" },
-					h("span", { className: "wg-header-title" }, groupBy === "flat" ? "会话" : "工作区"),
-					h(
-						"div",
-						{ className: "wg-header-actions" },
-						h(
-							"button",
-							{
-								type: "button",
-								className: "wg-iconbtn",
-								title: "新建分区",
-								onClick: () => setCreating({ value: "" })
-							},
-							IconGroupAdd(16)
-						),
-						h(
-							"button",
-							{
-								type: "button",
-								className: "wg-iconbtn",
-								title: "搜索",
-								"aria-pressed": searchOpen,
-								onClick: () => {
-									if (searchOpen) {
-										setSearch("");
-										setSearchOpen(false);
-									} else {
-										setSearchOpen(true);
+					{ className: "wg-header" + (searchOpen ? " wg-header-searching" : "") },
+					searchOpen
+						? h(
+								"div",
+								{ className: "wg-search wg-search-inline" },
+								h("span", { className: "wg-search-icon" }, IconSearch(14)),
+								h("input", {
+									className: "wg-search-input",
+									autoFocus: true,
+									placeholder: "搜索会话",
+									"aria-label": "搜索会话",
+									value: search,
+									onChange: (event) => setSearch(event.currentTarget.value),
+									onKeyDown: (event) => {
+										if (event.key === "Escape") {
+											setSearch("");
+											setSearchOpen(false);
+										}
 									}
-								}
-							},
-							IconSearch(16)
-						),
-						h(NativeViewMenu, {
-							groupBy,
-							orderBy,
-							archivedFilter,
-							onGroup: (mode) => actions.setGroupBy(mode),
-							onOrder: (mode) => actions.setOrderBy(mode),
-							onArchived: (mode) => actions.setArchivedFilter(mode)
-						}),
-						props.hasDirectoryFlow === true || props.createWorkspace !== undefined
-							? h(
+								}),
+								h(
 									"button",
-									{ type: "button", className: "wg-iconbtn", title: "添加工作区", onClick: openAddWorkspace },
-									IconAddFolder(16)
+									{ type: "button", className: "wg-iconbtn", title: "关闭搜索", onClick: () => { setSearch(""); setSearchOpen(false); } },
+									IconClose(12)
 								)
-							: null
-					)
-				),
-				searchOpen
-					? h(
-							"div",
-							{ className: "wg-search" },
-							h("span", { className: "wg-search-icon" }, IconSearch(14)),
-							h("input", {
-								className: "wg-search-input",
-								autoFocus: true,
-								placeholder: "搜索会话名称",
-								"aria-label": "搜索会话",
-								value: search,
-								onChange: (event) => setSearch(event.currentTarget.value),
-								onKeyDown: (event) => {
-									if (event.key === "Escape") {
-										setSearch("");
-										setSearchOpen(false);
-									}
-								}
-							}),
-							search !== ""
-								? h(
+							)
+						: [
+								h("span", { key: "title", className: "wg-header-title" }, groupBy === "flat" ? "会话" : "工作区"),
+								h(
+									"div",
+									{ key: "actions", className: "wg-header-actions" },
+									h(
 										"button",
-										{ type: "button", className: "wg-iconbtn", title: "清除", onClick: () => setSearch("") },
-										IconClose(12)
-									)
-								: null
-						)
-					: null,
+										{ type: "button", className: "wg-iconbtn", title: "新建分区", onClick: () => setCreating({ value: "" }) },
+										IconGroupAdd(16)
+									),
+									h(
+										"button",
+										{ type: "button", className: "wg-iconbtn", title: "搜索", onClick: () => setSearchOpen(true) },
+										IconSearch(16)
+									),
+									h(NativeViewMenu, {
+										key: "view",
+										groupBy,
+										orderBy,
+										archivedFilter,
+										onGroup: (mode) => actions.setGroupBy(mode),
+										onOrder: (mode) => actions.setOrderBy(mode),
+										onArchived: (mode) => actions.setArchivedFilter(mode)
+									}),
+									props.hasDirectoryFlow === true || props.createWorkspace !== undefined
+										? h(
+												"button",
+												{ key: "add", type: "button", className: "wg-iconbtn", title: "添加工作区", onClick: openAddWorkspace },
+												IconAddFolder(16)
+											)
+										: null
+								)
+							]
+				),
 				h(
 					"div",
 					{ className: "wg-list", role: "tree", "aria-label": searchActive ? "搜索结果" : groupBy === "flat" ? "会话" : "工作区" },
@@ -1510,8 +1493,14 @@ window.__ModuleLoader__.load({
 					picker = undefined;
 				}
 				if (picker === undefined || typeof picker.pick !== "function") throw new Error("no native directory picker");
-				const path = await picker.pick();
-				return typeof path === "string" ? path : null;
+				const result = await picker.pick();
+				// `pick()` is an RPC envelope: { ok: true, value: path } | { ok: false, error }.
+				// Some hosts may hand back a bare string; accept that too.
+				if (typeof result === "string") return result;
+				if (result !== null && typeof result === "object" && result.ok === true) {
+					return typeof result.value === "string" ? result.value : null;
+				}
+				throw new Error(result && result.error && result.error.message ? result.error.message : "directory picker failed");
 			};
 
 			ctx.slots.inject(SLOT, () => {
